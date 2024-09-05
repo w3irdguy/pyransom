@@ -1,41 +1,30 @@
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import unpad
-from Crypto.Protocol.KDF import scrypt
+from cryptography.fernet import Fernet
 import os
+import base64
+import hashlib
 
-# Configurações
-directory_to_decrypt = '/sdcard/Secret/'
-password = 'youmoronxd'
+def generate_key(password):
+    # Deriva uma chave a partir da senha
+    key = base64.urlsafe_b64encode(hashlib.sha256(password.encode()).digest()[:32])
+    return key
 
-# Ler o salt
-def load_salt():
-    with open('salt.bin', 'rb') as f:
-        return f.read()
+def decrypt_file(file_path, key):
+    fernet = Fernet(key)
+    with open(file_path, 'rb') as file:
+        encrypted_data = file.read()
+    decrypted_data = fernet.decrypt(encrypted_data)
+    with open(file_path, 'wb') as file:
+        file.write(decrypted_data)
 
-salt = load_salt()
+def decrypt_directory(directory, password):
+    key = generate_key(password)
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
+        if os.path.isfile(file_path):
+            decrypt_file(file_path, key)
 
-# Derivar a chave AES256
-key = scrypt(password.encode(), salt, 32, N=2**14, r=8, p=1)
+# Substitua pelos valores apropriados
+directory_to_decrypt = '/sdcard/Secret'
+decryption_password = 'passwd'
 
-# Função para descriptografar arquivos
-def decrypt_file(file_path, cipher):
-    with open(file_path, 'rb') as f:
-        encrypted_data = f.read()
-    decrypted_data = unpad(cipher.decrypt(encrypted_data), AES.block_size)
-    with open(file_path[:-4], 'wb') as f:
-        f.write(decrypted_data)
-
-# Função para descriptografar um diretório
-def decrypt_directory(directory):
-    for foldername, subfolders, filenames in os.walk(directory):
-        for filename in filenames:
-            if filename.endswith('.enc'):
-                file_path = os.path.join(foldername, filename)
-                with open(file_path, 'rb') as f:
-                    iv = f.read(AES.block_size)
-                    encrypted_data = f.read()
-                cipher = AES.new(key, AES.MODE_CBC, iv=iv)
-                decrypt_file(file_path, cipher)
-                os.remove(file_path)
-
-decrypt_directory(directory_to_decrypt)
+decrypt_directory(directory_to_decrypt, decryption_password)
