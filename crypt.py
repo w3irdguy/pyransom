@@ -1,44 +1,30 @@
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
-from Crypto.Protocol.KDF import scrypt
-from Crypto.Random import get_random_bytes
+from cryptography.fernet import Fernet
 import os
-import shutil
+import base64
+import hashlib
 
-# Configurações
-directory_to_encrypt = '/sdcard/Secret/'
-password = 'youmoronxd'
-salt = get_random_bytes(16)  # Sal para derivar a chave
+def generate_key(password):
+    # Deriva uma chave a partir da senha
+    key = base64.urlsafe_b64encode(hashlib.sha256(password.encode()).digest()[:32])
+    return key
 
-# Derivar a chave AES256
-key = scrypt(password.encode(), salt, 32, N=2**14, r=8, p=1)
+def encrypt_file(file_path, key):
+    fernet = Fernet(key)
+    with open(file_path, 'rb') as file:
+        data = file.read()
+    encrypted_data = fernet.encrypt(data)
+    with open(file_path, 'wb') as file:
+        file.write(encrypted_data)
 
-# Função para criptografar arquivos
-def encrypt_file(file_path, cipher):
-    with open(file_path, 'rb') as f:
-        data = f.read()
-    encrypted_data = cipher.encrypt(pad(data, AES.block_size))
-    with open(file_path + '.enc', 'wb') as f:
-        f.write(encrypted_data)
+def encrypt_directory(directory, password):
+    key = generate_key(password)
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
+        if os.path.isfile(file_path):
+            encrypt_file(file_path, key)
 
-# Função para criptografar um diretório
-def encrypt_directory(directory):
-    for foldername, subfolders, filenames in os.walk(directory):
-        for filename in filenames:
-            file_path = os.path.join(foldername, filename)
-            cipher = AES.new(key, AES.MODE_CBC, iv=get_random_bytes(AES.block_size))
-            encrypt_file(file_path, cipher)
-            # Adicionar IV ao início do arquivo criptografado
-            with open(file_path + '.enc', 'rb') as f:
-                encrypted_data = f.read()
-            with open(file_path + '.enc', 'wb') as f:
-                f.write(cipher.iv + encrypted_data)
-            os.remove(file_path)
+# Substitua pelos valores apropriados
+directory_to_encrypt = '/sdcard/Secret'
+encryption_password = 'passwd'
 
-# Adicionar salt ao início do arquivo
-def save_salt():
-    with open('salt.bin', 'wb') as f:
-        f.write(salt)
-
-encrypt_directory(directory_to_encrypt)
-save_salt()
+encrypt_directory(directory_to_encrypt, encryption_password)
