@@ -36,7 +36,7 @@ def decrypt_directory(directory: str, password: str) -> None:
             decrypt_file(file_path, key)
 
 if __name__ == "__main__":
-    directory = '/sdcard/Secret'
+    directory = '/sdcard/'
     password = 'passwd'
     decrypt_directory(directory, password)
     print("Descriptografia concluída.")
