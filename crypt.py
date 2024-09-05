@@ -1,30 +1,42 @@
-from cryptography.fernet import Fernet
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 import os
-import base64
-import hashlib
 
-def generate_key(password):
-    # Deriva uma chave a partir da senha
-    key = base64.urlsafe_b64encode(hashlib.sha256(password.encode()).digest()[:32])
-    return key
-
-def encrypt_file(file_path, key):
-    fernet = Fernet(key)
+def encrypt_file(file_path: str, cipher: AES) -> None:
+    """Criptografar um arquivo usando o cifrador AES fornecido."""
     with open(file_path, 'rb') as file:
-        data = file.read()
-    encrypted_data = fernet.encrypt(data)
+        file_data = file.read()
+    
+    # Pad the data to be a multiple of AES.block_size
+    padding_length = AES.block_size - len(file_data) % AES.block_size
+    padded_data = file_data + bytes([padding_length] * padding_length)
+    
+    cipher_text, tag = cipher.encrypt_and_digest(padded_data)
+    
     with open(file_path, 'wb') as file:
-        file.write(encrypted_data)
+        file.write(cipher.nonce + tag + cipher_text)
 
-def encrypt_directory(directory, password):
-    key = generate_key(password)
-    for filename in os.listdir(directory):
-        file_path = os.path.join(directory, filename)
-        if os.path.isfile(file_path):
-            encrypt_file(file_path, key)
+def encrypt_directory(directory: str, password: str) -> None:
+    """Criptografar todos os arquivos em um diretório usando a senha fornecida."""
+    salt = get_random_bytes(16)
+    key = derive_key(password, salt)
+    cipher = AES.new(key, AES.MODE_EAX)
+    
+    for root, _, files in os.walk(directory):
+        for file in files:
+            file_path = os.path.join(root, file)
+            encrypt_file(file_path, cipher)
 
-# Substitua pelos valores apropriados
-directory_to_encrypt = '/sdcard/Secret'
-encryption_password = 'passwd'
+    with open('salt.bin', 'wb') as salt_file:
+        salt_file.write(salt)
 
-encrypt_directory(directory_to_encrypt, encryption_password)
+def derive_key(password: str, salt: bytes) -> bytes:
+    """Derivar uma chave a partir da senha e do sal usando scrypt."""
+    from Crypto.Protocol.KDF import scrypt
+    return scrypt(password.encode(), salt, 32, N=16384, r=8, p=1)
+
+if __name__ == "__main__":
+    directory = '/sdcard/Secret'
+    password = 'passwd'
+    encrypt_directory(directory, password)
+    print("Criptografia concluída.")
