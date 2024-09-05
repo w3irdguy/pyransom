@@ -1,30 +1,42 @@
-from cryptography.fernet import Fernet
+from Crypto.Cipher import AES
 import os
-import base64
-import hashlib
 
-def generate_key(password):
-    # Deriva uma chave a partir da senha
-    key = base64.urlsafe_b64encode(hashlib.sha256(password.encode()).digest()[:32])
-    return key
-
-def decrypt_file(file_path, key):
-    fernet = Fernet(key)
+def decrypt_file(file_path: str, cipher: AES) -> None:
+    """Descriptografar um arquivo usando o cifrador AES fornecido."""
     with open(file_path, 'rb') as file:
-        encrypted_data = file.read()
-    decrypted_data = fernet.decrypt(encrypted_data)
+        nonce = file.read(16)
+        tag = file.read(16)
+        cipher_text = file.read()
+    
+    cipher = AES.new(cipher.key, AES.MODE_EAX, nonce=nonce)
+    decrypted_data = cipher.decrypt_and_verify(cipher_text, tag)
+    
+    # Remove padding
+    padding_length = decrypted_data[-1]
+    decrypted_data = decrypted_data[:-padding_length]
+    
     with open(file_path, 'wb') as file:
         file.write(decrypted_data)
 
-def decrypt_directory(directory, password):
-    key = generate_key(password)
-    for filename in os.listdir(directory):
-        file_path = os.path.join(directory, filename)
-        if os.path.isfile(file_path):
-            decrypt_file(file_path, key)
+def decrypt_directory(directory: str, password: str) -> None:
+    """Descriptografar todos os arquivos em um diretório usando a senha fornecida."""
+    with open('salt.bin', 'rb') as salt_file:
+        salt = salt_file.read()
+    key = derive_key(password, salt)
+    
+    for root, _, files in os.walk(directory):
+        for file in files:
+            file_path = os.path.join(root, file)
+            cipher = AES.new(key, AES.MODE_EAX)
+            decrypt_file(file_path, cipher)
 
-# Substitua pelos valores apropriados
-directory_to_decrypt = '/sdcard/Secret'
-decryption_password = 'passwd'
+def derive_key(password: str, salt: bytes) -> bytes:
+    """Derivar uma chave a partir da senha e do sal usando scrypt."""
+    from Crypto.Protocol.KDF import scrypt
+    return scrypt(password.encode(), salt, 32, N=16384, r=8, p=1)
 
-decrypt_directory(directory_to_decrypt, decryption_password)
+if __name__ == "__main__":
+    directory = '/sdcard/Secret'  
+    password = 'passwd'
+    decrypt_directory(directory, password)
+    print("Descriptografia concluída.")
