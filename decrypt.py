@@ -1,14 +1,20 @@
 from Crypto.Cipher import AES
 import os
 
-def decrypt_file(file_path: str, cipher: AES) -> None:
-    """Descriptografar um arquivo usando o cifrador AES fornecido."""
+def derive_key(password: str, salt: bytes) -> bytes:
+    """Derivar uma chave a partir da senha e do sal usando scrypt."""
+    from Crypto.Protocol.KDF import scrypt
+    return scrypt(password.encode(), salt, 32, N=16384, r=8, p=1)
+
+def decrypt_file(file_path: str, key: bytes) -> None:
+    """Descriptografar um arquivo usando a chave AES fornecida."""
     with open(file_path, 'rb') as file:
         nonce = file.read(16)
         tag = file.read(16)
         cipher_text = file.read()
     
-    cipher = AES.new(cipher.key, AES.MODE_EAX, nonce=nonce)
+    # Initialize cipher for decryption
+    cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
     decrypted_data = cipher.decrypt_and_verify(cipher_text, tag)
     
     # Remove padding
@@ -27,16 +33,10 @@ def decrypt_directory(directory: str, password: str) -> None:
     for root, _, files in os.walk(directory):
         for file in files:
             file_path = os.path.join(root, file)
-            cipher = AES.new(key, AES.MODE_EAX)
-            decrypt_file(file_path, cipher)
-
-def derive_key(password: str, salt: bytes) -> bytes:
-    """Derivar uma chave a partir da senha e do sal usando scrypt."""
-    from Crypto.Protocol.KDF import scrypt
-    return scrypt(password.encode(), salt, 32, N=16384, r=8, p=1)
+            decrypt_file(file_path, key)
 
 if __name__ == "__main__":
-    directory = '/sdcard/Secret'  
+    directory = '/sdcard/Secret'
     password = 'passwd'
     decrypt_directory(directory, password)
     print("Descriptografia concluída.")
